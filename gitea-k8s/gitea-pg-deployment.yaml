@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea-pg
+  labels:
+    app: gitea
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: gitea
+    tier: postgres
+  clusterIP: None
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-database-storage
+  namespace: default
+  labels:
+    app: gitea
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea-pg
+  labels:
+    app: gitea
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitea
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: gitea
+        tier: postgres
+    spec:
+      volumes:
+      - name: gitea-pg-data
+        persistentVolumeClaim:
+          claimName: gitea-database-storage
+      containers:
+      - image: postgres:12.4
+        name: postgres
+        env:
+        - name: POSTGRES_PASSWORD
+          value: YourPassword
+        - name: PGDATA 
+          value: /var/lib/postgresql/data/pg
+        - name: POSTGRES_DB
+          value: gitea
+        ports:
+        - containerPort: 5432
+          name: pg
+        volumeMounts:
+        - name: gitea-pg-data
+          mountPath: /var/lib/postgresql/data

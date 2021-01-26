@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea-web-svc
+  # labels:
+  #   app: gitea
+spec:
+  ports:
+    - port: 3000
+  selector:
+    app: gitea
+    tier: frontend
+  clusterIP: None
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: gitea-ingress
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: default
+spec:
+  rules:
+  - host: "gitea.k8s.themaymeow.com"
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: gitea-web-svc
+            port:
+              number: 3000
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-shared-storage
+  namespace: default
+  labels:
+    app: gitea
+    tier: frontend
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea
+  labels:
+    app: gitea
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitea
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: gitea
+        tier: frontend
+    spec:
+      volumes:
+      - name: gitea-data
+        persistentVolumeClaim:
+          claimName: gitea-shared-storage
+      containers:
+      - image: gitea/gitea:latest
+        name: gitea
+        ports:
+        - containerPort: 3000
+          name: gitea-web
+        - containerPort: 22
+          name: gitea-ssh
+        volumeMounts:
+        - name: gitea-data
+          mountPath: /data
